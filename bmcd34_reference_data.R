@@ -6,11 +6,13 @@ library(harmony)
 library(cowplot)
 library(dplyr)
 library(limma)
+library(reticulate)
+use_virtualenv('/root/.virtualenvs/r-reticulate')
 
 s.genes <- cc.genes$s.genes
 g2m.genes <- cc.genes$g2m.genes
 
-bmcd34_combined<- readRDS("PalantirCD34_combined_CellCycle_2023-07-10.rds")
+bmcd34_combined<- readRDS("PalantirCD34_combined_CellCycle_2025-01-06.rds")
 # cluste -> cellType
 #  
 # 1 -> HSC/MPP
