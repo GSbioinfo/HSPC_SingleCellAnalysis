@@ -2,20 +2,21 @@ set.seed(12345)
 library(Seurat)
 library(hdf5r)
 library(patchwork)
-library(harmony)
+#library(harmony)
 library(cowplot)
 library(dplyr)
 library(limma)
-
+library(reticulate)
+use_virtualenv('/root/.virtualenvs/r-reticulate')
 s.genes <- cc.genes$s.genes
 g2m.genes <- cc.genes$g2m.genes
 
 bm1_1<- Read10X_h5( "/scratch/CD34cells_Palantir/bmp1/Run4xSI-GA-H11_out/outs/filtered_feature_bc_matrix.h5") %>%
   CreateSeuratObject( project = "BM1_1", min.cells = 3, min.features = 200)
 bm1_1[["percent.mt"]] <- PercentageFeatureSet(bm1_1, pattern = "^MT-")
-plot1 <- FeatureScatter(bm1_1, feature1 = "nCount_RNA", feature2 = "percent.mt")
-plot2 <- FeatureScatter(bm1_1, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
-plot1 + plot2
+#plot1 <- FeatureScatter(bm1_1, feature1 = "nCount_RNA", feature2 = "percent.mt")
+#plot2 <- FeatureScatter(bm1_1, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+#plot1 + plot2
 bm1_1 <- subset(bm1_1, subset = nFeature_RNA > 200 & nFeature_RNA < 6000 & percent.mt < 10)
 bm1_1 <- CellCycleScoring(bm1_1, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE, verbose = FALSE)
 
@@ -144,29 +145,36 @@ bm3_4 <- SCTransform(bm3_4, method = "glmGamPoi", vst.flavor = "v2", vars.to.reg
 
 
 #-------------------
+print("-----------Find inegration features---------------------")
 intFeater<- SelectIntegrationFeatures(object.list =c(bm1_1,bm1_2,bm2_1,bm2_2,bm2_3,bm2_4,bm2_5,bm3_1,bm3_2,bm3_3,bm3_4), nfeatures = 3000, verbose = FALSE )
+print("-----------Preparing data for integration ---------------------")
 comib_prep<- PrepSCTIntegration(object.list =c(bm1_1,bm1_2,bm2_1,bm2_2,bm2_3,bm2_4,bm2_5,bm3_1,bm3_2,bm3_3,bm3_4), assay="SCT", anchor.features = intFeater)
+print("-----------Finding intgreation anchors---------------------")
 intAnchor<- FindIntegrationAnchors(comib_prep,normalization.method = "SCT", anchor.features = intFeater, reduction = "cca", verbose = FALSE)#object.list =c(Soluplus,SR_1,UM171))
-hspc_comb <- IntegrateData(intAnchor, normalization.method = "SCT",new.assay.name = "Combine", verbose = FALSE)
-
+print("-----------Integrating data sets---------------------")
+hspc_comb <- IntegrateData(intAnchor, normalization.method = "SCT",new.assay.name = "Combine", verbose = TRUE)
+print("-----------Running PCA---------------------")
 DefaultAssay(hspc_comb)<- "Combine"
+print("-----------Running PCA---------------------")
 hspc_comb <- RunPCA(hspc_comb,npcs = 50, verbose = FALSE)
-
+print("-----------Clusring---------------------")
 hspc_comb<- FindNeighbors(hspc_comb,  dims = 1:15, verbose = FALSE, reduction = "pca", graph.name = "Combine_snn" )
 hspc_comb<- FindClusters(hspc_comb,resolution = 0.4, method = "igraph", graph.name = "Combine_snn", algorithm = 4)
-
+print("-----------Runing UMAP---------------------")
 hspc_comb<- RunUMAP(hspc_comb,  dims = 1:15, reduction = 'pca', metric = "euclidean", return.model = TRUE)
 
 
-DimPlot(hspc_comb)
+dimplt<- DimPlot(hspc_comb)
+ggsave2("Dimplot_cd34umap.pdf", plot=dimplt, device = 'pdf',height = 8, width = 8)
+print("-----------Searching markers---------------------")
 hspc_comb<- PrepSCTFindMarkers(object = hspc_comb, assay = "SCT")
 hspc_comb.markers<- FindAllMarkers(hspc_comb, assay = "SCT", verbose = FALSE)
-
-saveRDS(hspc_comb, file = paste0("PalantirCD34_combined_CellCycle_",Sys.Date(),".rds"))
-saveRDS(hspc_comb.markers,  file = paste0("PalantirCD34_SCT_allmarkers_CellCycle_",Sys.Date(),".rds"))
+print("-----------Saving data ---------------------")
+saveRDS(hspc_comb, file = paste0("/scratch/CD34cells_Palantir/PalantirCD34_combined_CellCycle_",Sys.Date(),".rds"))
+saveRDS(hspc_comb.markers,  file = paste0("/scratch/CD34cells_Palantir/PalantirCD34_SCT_allmarkers_CellCycle_",Sys.Date(),".rds"))
 
 hspc_comb.RNAmarkers<- FindAllMarkers(hspc_comb, assay = "RNA", verbose = FALSE)
 
-saveRDS(hspc_comb.RNAmarkers,  file = paste0("PalantirCD34_RNA_allmarkers_CellCycle_",Sys.Date(),".rds"))
+saveRDS(hspc_comb.RNAmarkers,  file = paste0("/scratch/CD34cells_Palantir/PalantirCD34_RNA_allmarkers_CellCycle_",Sys.Date(),".rds"))
 
 
