@@ -2,7 +2,7 @@ set.seed(12345)
 library(Seurat)
 library(hdf5r)
 library(patchwork)
-library(harmony)
+#library(harmony)
 library(cowplot)
 library(dplyr)
 library(limma)
@@ -12,7 +12,12 @@ use_virtualenv('/root/.virtualenvs/r-reticulate')
 s.genes <- cc.genes$s.genes
 g2m.genes <- cc.genes$g2m.genes
 
-bmcd34_combined<- readRDS("PalantirCD34_combined_CellCycle_2025-01-06.rds")
+bmcd34_markers<- readRDS("/scratch/CD34cells_Palantir/PalantirCD34_RNA_allmarkers_CellCycle_2025-01-06.rds")
+bmcd34_markers %>% group_by(cluster) %>% top_n(5,avg_log2FC) -> top5
+bmcd34_markers %>% group_by(cluster) %>% top_n(2,avg_log2FC) -> top2
+bmcd34_markers %>% group_by(cluster) %>% top_n(10,avg_log2FC) -> top10 
+
+bmcd34_combined<- readRDS("/scratch/CD34cells_Palantir/PalantirCD34_combined_CellCycle_2025-01-06.rds")
 # cluste -> cellType
 #  
 # 1 -> HSC/MPP
@@ -48,36 +53,25 @@ bmcd34_combined <- RenameIdents(bmcd34_combined, # genes
                                 `14` = 'preB',   # CD24, IGHM
                                 `15` = 'MastCell')# FTL, FTH1, C1QA
 
-DimPlot(bmcd34_combined,label = T)
-DimPlot(bmcd34_combined,group.by = "orig.ident", split.by = "Phase")
-DimPlot(bmcd34_combined,group.by = "Phase")
-bmcd34_markers<- readRDS("PalantirCD34_SCT_allmarkers_CellCycle_2023-07-10.rds")
-bmcd34_markers %>% group_by(cluster) %>% top_n(5,avg_log2FC) -> top5
-bmcd34_markers %>% group_by(cluster) %>% top_n(2,avg_log2FC) -> top2
-bmcd34_markers %>% group_by(cluster) %>% top_n(10,avg_log2FC) -> top10
-DotPlot(bmcd34_combined,assay = "SCT",features = unique(top2$gene))+RotatedAxis()
+ggsave2("Annotated_dimplot.pdf", DimPlot(bmcd34_combined,label = T), height = 10, width = 10)
+ggsave2("dimplot_split_by_donor_cellcycle.pdf", DimPlot(bmcd34_combined,group.by = "orig.ident", split.by = "Phase"), width = 12, height = 4)
+ggsave2("dimplot_cellcycle.pdf",DimPlot(bmcd34_combined,group.by = "Phase"), width = 12, height = 4)
+#bmcd34_markers<- readRDS("PalantirCD34_SCT_allmarkers_CellCycle_2023-07-10.rds")
+#bmcd34_markers %>% group_by(cluster) %>% top_n(5,avg_log2FC) -> top5
+#bmcd34_markers %>% group_by(cluster) %>% top_n(2,avg_log2FC) -> top2
+#bmcd34_markers %>% group_by(cluster) %>% top_n(10,avg_log2FC) -> top10
+#DotPlot(bmcd34_combined,assay = "SCT",features = unique(top2$gene))+RotatedAxis()
 
-saveRDS(bmcd34_combined, file = paste0("Anno_PalantirCD34_combined_CellCycle_",Sys.Date(),".rds"))
+saveRDS(bmcd34_combined, file = paste0("/scratch/CD34cells_Palantir/Anno_PalantirCD34_combined_CellCycle_",Sys.Date(),".rds"))
 stem_gene<- c("HLF", "AVP", "CD34","PROM1","TOP2A","MKI67","S100A8","S100A9",
               "MPO","PRTN3", "ELANE", "LTB", "JCHAIN", "GATA2",
               "ITGA2B", "KLF1", "TFRC", "HBG2", "AHSP", "PF4", 
               "ITGB3", "KIT", "KRT1")
 
 DefaultAssay(bmcd34_combined)<- "Combine"
-DotPlot(bmcd34_combined,assay = "SCT",features = stem_gene)+RotatedAxis()
+dtplt<- DotPlot(bmcd34_combined,assay = "SCT",features = stem_gene)+RotatedAxis()
+ggsave2("Dotplot_select_stem_genes.pdf",dtplt, height = 12, width = 10) 
 #bmcd34_combined<- PrepSCTFindMarkers(object = bmcd34_combined)
 DefaultAssay(bmcd34_combined)<- "SCT"
-FeaturePlot(bmcd34_combined, 
-            features = c("S100A10","MPO","LTB","HLF","IRF8","ITGA2B","GATA1","CD79A"), label = T)
-
-clust_celltype<- 
-  data.frame()
-#soloplus_data<- readRDS("../GSE192519_analysis/IntGrat_hspc_ManuReproduce_combined_CellCycle_2023-06-18.rds")
-
-
-#DefaultAssay(bmcd34_combined)<- "Combine"
-#bmcd34_combined<- FindNeighbors(bmcd34_combined,  dims = 1:15, verbose = FALSE, reduction = "pca", graph.name = "Combine_snn")#
-#bmcd34_combined<- FindClusters(bmcd34_combined, resolution = 0.4, method = "igraph", graph.name = "Combine_snn", algorithm = 4)
-
-#bmcd34_combined<- RunUMAP(bmcd34_combined, dims = 1:15, reduction = 'pca', metric = "euclidean")
-#DimPlot(bmcd34_combined, label = T)
+feat_plt<- FeaturePlot(bmcd34_combined, features = c("S100A10","MPO","LTB","HLF","IRF8","ITGA2B","GATA1","CD79A"), label = T)
+ggsave2("Feature_plot_topCluster_genes.pdf",feat_plt, height = 12, width = 10) 
